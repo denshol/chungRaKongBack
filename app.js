@@ -5,7 +5,9 @@ const mongoose = require("mongoose");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const dotenv = require("dotenv");
 
+dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000; // Railway의 PORT 환경변수 사용
 
