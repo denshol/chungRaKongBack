@@ -5,11 +5,24 @@ const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const helmet = require("helmet");
+const Joi = require("joi");
+const winston = require("winston");
 
 dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// 로깅 설정
+const logger = winston.createLogger({
+  level: "info",
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+  transports: [new winston.transports.Console()],
+});
 
 // 'uploads' 폴더 생성
 if (!fs.existsSync("uploads")) {
@@ -17,7 +30,8 @@ if (!fs.existsSync("uploads")) {
 }
 
 // 미들웨어 설정
-app.use(cors());
+app.use(cors({ origin: "*" }));
+app.use(helmet());
 app.use(express.json());
 app.use("/uploads", express.static("uploads"));
 
@@ -27,97 +41,67 @@ mongoose
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
-  .then(() => {
-    console.log("MongoDB 연결 성공");
-  })
-  .catch((err) => {
-    console.error("MongoDB 연결 실패:", err);
-  });
+  .then(() => logger.info("MongoDB 연결 성공"))
+  .catch((err) => logger.error("MongoDB 연결 실패:", err));
 
 // 게시글 스키마 정의
 const PostSchema = new mongoose.Schema({
-  title: {
-    type: String,
-    required: true,
-  },
-  content: {
-    type: String,
-    required: true,
-  },
+  title: { type: String, required: true },
+  content: { type: String, required: true },
   category: {
     type: String,
     required: true,
     enum: ["notice", "event", "review"],
   },
-  program: {
-    type: String,
-    required: true,
-  },
+  program: { type: String, required: true },
   image: String,
-  views: {
-    type: Number,
-    default: 0,
-  },
-  likes: {
-    type: Number,
-    default: 0,
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now,
-  },
+  views: { type: Number, default: 0 },
+  likes: { type: Number, default: 0 },
+  createdAt: { type: Date, default: Date.now },
 });
 
 const Post = mongoose.model("Post", PostSchema);
 
 // 파일 업로드 설정
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/");
-  },
-  filename: (req, file, cb) => {
-    cb(null, `${Date.now()}${path.extname(file.originalname)}`);
-  },
+  destination: (req, file, cb) => cb(null, "uploads/"),
+  filename: (req, file, cb) =>
+    cb(null, `${Date.now()}${path.extname(file.originalname)}`),
 });
 
 const upload = multer({
   storage,
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB 제한
-  },
+  limits: { fileSize: 5 * 1024 * 1024 },
 }).single("image");
+
+// Joi 스키마 (입력 검증)
+const postSchema = Joi.object({
+  title: Joi.string().required(),
+  content: Joi.string().required(),
+  category: Joi.string().valid("notice", "event", "review").required(),
+  program: Joi.string().required(),
+});
 
 // 게시글 작성 API
 app.post("/api/posts", (req, res) => {
   upload(req, res, async (err) => {
+    if (err) {
+      logger.error("파일 업로드 에러:", err);
+      return res
+        .status(400)
+        .json({ message: "파일 업로드 실패", error: err.message });
+    }
+
+    const { error } = postSchema.validate(req.body);
+    if (error) {
+      logger.warn("입력 검증 실패:", error.details);
+      return res
+        .status(400)
+        .json({ message: "유효하지 않은 입력값", error: error.details });
+    }
+
     try {
-      if (err) {
-        console.error("파일 업로드 에러:", err);
-        return res
-          .status(400)
-          .json({ message: "파일 업로드 실패", error: err.message });
-      }
-
       const { title, content, category, program } = req.body;
-
-      // 필수 필드 검증
-      if (!title || !content || !category || !program) {
-        console.error("누락된 필수 항목:", {
-          title,
-          content,
-          category,
-          program,
-        });
-        return res.status(400).json({
-          message: "필수 항목이 누락되었습니다.",
-          missing: {
-            title: !title,
-            content: !content,
-            category: !category,
-            program: !program,
-          },
-        });
-      }
 
       const post = new Post({
         title,
@@ -128,34 +112,31 @@ app.post("/api/posts", (req, res) => {
       });
 
       await post.save();
-      console.log("게시글 저장 성공:", post);
+      logger.info("게시글 저장 성공:", post);
       res.status(201).json(post);
     } catch (error) {
-      console.error("게시글 작성 에러:", error);
-      res.status(500).json({
-        message: "게시글 작성 실패",
-        error: error.message,
-        stack: error.stack,
-      });
+      logger.error("게시글 작성 에러:", error);
+      res.status(500).json({ message: "게시글 작성 실패" });
     }
   });
 });
 
-// 게시글 목록 조회 API
+// 게시글 목록 조회 API (페이징 적용)
 app.get("/api/posts", async (req, res) => {
   try {
-    const { category, program } = req.query;
+    const { category, program, page = 1, limit = 10 } = req.query;
     const filter = {};
-
     if (category) filter.category = category;
     if (program) filter.program = program;
 
-    const posts = await Post.find(filter).sort("-createdAt").limit(20);
+    const posts = await Post.find(filter)
+      .sort("-createdAt")
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit));
 
-    console.log("게시글 목록 조회 결과:", posts.length);
     res.json(posts);
   } catch (error) {
-    console.error("게시글 목록 조회 에러:", error);
+    logger.error("게시글 목록 조회 에러:", error);
     res.status(500).json({ message: "게시글 목록 조회 실패" });
   }
 });
@@ -170,17 +151,21 @@ app.get("/api/posts/:id", async (req, res) => {
 
     post.views += 1;
     await post.save();
-
     res.json(post);
   } catch (error) {
-    console.error("게시글 조회 에러:", error);
+    logger.error("게시글 조회 에러:", error);
     res.status(500).json({ message: "게시글 조회 실패" });
   }
 });
 
+// 기본 루트 라우트 (서버 확인용)
+app.get("/", (req, res) => {
+  res.send("서버가 정상적으로 실행 중입니다.");
+});
+
 // 에러 핸들링 미들웨어
 app.use((err, req, res, next) => {
-  console.error("Error:", err);
+  logger.error("서버 에러:", err);
   res.status(500).json({
     message: "서버 에러",
     error: err.message,
@@ -188,6 +173,7 @@ app.use((err, req, res, next) => {
   });
 });
 
+// 서버 실행
 app.listen(port, () => {
-  console.log(`서버가 http://localhost:${port}에서 실행 중입니다.`);
+  logger.info(`서버가 http://localhost:${port}에서 실행 중입니다.`);
 });
