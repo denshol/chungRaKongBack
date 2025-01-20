@@ -5,44 +5,36 @@ const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
-const helmet = require("helmet");
-const Joi = require("joi");
-const winston = require("winston");
 
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3000; // Railway에서 제공하는 포트 사용
 
-// 로깅 설정
-const logger = winston.createLogger({
-  level: "info",
-  format: winston.format.combine(
-    winston.format.timestamp(),
-    winston.format.json()
-  ),
-  transports: [new winston.transports.Console()],
+// 서버 리스닝
+app.listen(port, "0.0.0.0", () => {
+  console.log(`서버가 http://0.0.0.0:${port} 에서 실행 중입니다.`);
 });
 
-// 'uploads' 폴더 생성
+// 'uploads' 폴더 생성 (없을 경우 생성)
 if (!fs.existsSync("uploads")) {
   fs.mkdirSync("uploads");
 }
 
 // 미들웨어 설정
-app.use(cors({ origin: "*" }));
-app.use(helmet());
+app.use(cors());
 app.use(express.json());
 app.use("/uploads", express.static("uploads"));
 
-// MongoDB 연결
+// MongoDB 연결 설정
 mongoose
-  .connect(process.env.MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
+  .connect(process.env.MONGODB_URI)
+  .then(() => {
+    console.log("MongoDB 연결 성공");
   })
-  .then(() => logger.info("MongoDB 연결 성공"))
-  .catch((err) => logger.error("MongoDB 연결 실패:", err));
+  .catch((err) => {
+    console.error("MongoDB 연결 실패:", err);
+  });
 
 // 게시글 스키마 정의
 const PostSchema = new mongoose.Schema({
@@ -74,35 +66,22 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
 }).single("image");
 
-// Joi 스키마 (입력 검증)
-const postSchema = Joi.object({
-  title: Joi.string().required(),
-  content: Joi.string().required(),
-  category: Joi.string().valid("notice", "event", "review").required(),
-  program: Joi.string().required(),
-});
-
 // 게시글 작성 API
 app.post("/api/posts", (req, res) => {
   upload(req, res, async (err) => {
     if (err) {
-      logger.error("파일 업로드 에러:", err);
+      console.error("파일 업로드 실패:", err);
       return res
         .status(400)
         .json({ message: "파일 업로드 실패", error: err.message });
     }
 
-    const { error } = postSchema.validate(req.body);
-    if (error) {
-      logger.warn("입력 검증 실패:", error.details);
-      return res
-        .status(400)
-        .json({ message: "유효하지 않은 입력값", error: error.details });
+    const { title, content, category, program } = req.body;
+    if (!title || !content || !category || !program) {
+      return res.status(400).json({ message: "필수 항목이 누락되었습니다." });
     }
 
     try {
-      const { title, content, category, program } = req.body;
-
       const post = new Post({
         title,
         content,
@@ -112,31 +91,27 @@ app.post("/api/posts", (req, res) => {
       });
 
       await post.save();
-      logger.info("게시글 저장 성공:", post);
       res.status(201).json(post);
     } catch (error) {
-      logger.error("게시글 작성 에러:", error);
+      console.error("게시글 작성 실패:", error);
       res.status(500).json({ message: "게시글 작성 실패" });
     }
   });
 });
 
-// 게시글 목록 조회 API (페이징 적용)
+// 게시글 목록 조회 API
 app.get("/api/posts", async (req, res) => {
   try {
-    const { category, program, page = 1, limit = 10 } = req.query;
+    const { category, program } = req.query;
     const filter = {};
+
     if (category) filter.category = category;
     if (program) filter.program = program;
 
-    const posts = await Post.find(filter)
-      .sort("-createdAt")
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit));
-
+    const posts = await Post.find(filter).sort("-createdAt").limit(20);
     res.json(posts);
   } catch (error) {
-    logger.error("게시글 목록 조회 에러:", error);
+    console.error("게시글 목록 조회 실패:", error);
     res.status(500).json({ message: "게시글 목록 조회 실패" });
   }
 });
@@ -153,27 +128,18 @@ app.get("/api/posts/:id", async (req, res) => {
     await post.save();
     res.json(post);
   } catch (error) {
-    logger.error("게시글 조회 에러:", error);
+    console.error("게시글 조회 실패:", error);
     res.status(500).json({ message: "게시글 조회 실패" });
   }
 });
 
-// 기본 루트 라우트 (서버 확인용)
+// 기본 페이지 (서버 정상 확인용)
 app.get("/", (req, res) => {
   res.send("서버가 정상적으로 실행 중입니다.");
 });
 
 // 에러 핸들링 미들웨어
 app.use((err, req, res, next) => {
-  logger.error("서버 에러:", err);
-  res.status(500).json({
-    message: "서버 에러",
-    error: err.message,
-    stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
-  });
-});
-
-// 서버 실행
-app.listen(port, () => {
-  logger.info(`서버가 http://localhost:${port}에서 실행 중입니다.`);
+  console.error("서버 에러:", err);
+  res.status(500).json({ message: "서버 에러", error: err.message });
 });
