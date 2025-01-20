@@ -4,7 +4,7 @@
   "main": "app.js",
   "scripts": {
     "start": "node app.js",
-    "dev": "nodemon app.js"
+    "postinstall": "npm install --omit=dev"
   },
   "dependencies": {
     "@types/node": "22.10.7",

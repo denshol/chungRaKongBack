@@ -9,7 +9,12 @@ const fs = require("fs");
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 3000; // Railway에서 제공하는 포트 사용
+const port = process.env.PORT || 3000;
+
+// 서버 시작 로그 추가
+console.log("Starting server...");
+console.log(`Configured PORT: ${port}`);
+console.log(`MongoDB URI: ${process.env.MONGODB_URI ? "Loaded" : "Missing"}`);
 
 // 서버 리스닝
 app.listen(port, "0.0.0.0", () => {
@@ -22,11 +27,17 @@ if (!fs.existsSync("uploads")) {
 }
 
 // 미들웨어 설정
-app.use(cors());
+app.use(
+  cors({
+    origin: "*",
+    methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use("/uploads", express.static("uploads"));
 
-// MongoDB 연결 설정
+// MongoDB 연결
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => {
@@ -34,6 +45,7 @@ mongoose
   })
   .catch((err) => {
     console.error("MongoDB 연결 실패:", err);
+    process.exit(1); // 연결 실패 시 앱 종료
   });
 
 // 게시글 스키마 정의
@@ -104,7 +116,6 @@ app.get("/api/posts", async (req, res) => {
   try {
     const { category, program } = req.query;
     const filter = {};
-
     if (category) filter.category = category;
     if (program) filter.program = program;
 
