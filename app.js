@@ -7,7 +7,7 @@ const path = require("path");
 const fs = require("fs");
 
 const app = express();
-const port = 3000;
+const port = process.env.PORT || 3000; // Railway의 PORT 환경변수 사용
 
 // uploads 폴더가 없으면 생성
 if (!fs.existsSync("uploads")) {
@@ -19,24 +19,18 @@ app.use(cors());
 app.use(express.json());
 app.use("/uploads", express.static("uploads"));
 
-// 요청 로깅 미들웨어
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
-  console.log("Body:", req.body);
-  console.log("Query:", req.query);
-  console.log("Files:", req.files);
-  next();
-});
-
-// MongoDB 연결
-mongoose.connect('mongodb://localhost:27017/chungraKongDB', {  // 대소문자 일치시킴
-  useNewUrlParser: true,
-  useUnifiedTopology: true
-}).then(() => {
-  console.log('MongoDB 연결 성공');
-}).catch(err => {
-  console.error('MongoDB 연결 실패:', err);
-});
+// MongoDB 연결 - Railway의 MongoDB URL 사용
+mongoose
+  .connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => {
+    console.log("MongoDB 연결 성공");
+  })
+  .catch((err) => {
+    console.error("MongoDB 연결 실패:", err);
+  });
 
 // 스키마 정의
 const PostSchema = new mongoose.Schema({
