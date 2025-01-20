@@ -1,17 +1,17 @@
-// app.js
 const express = require("express");
-const cors = require("cors");
 const mongoose = require("mongoose");
+const dotenv = require("dotenv");
+const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
-const dotenv = require("dotenv");
 
 dotenv.config();
-const app = express();
-const port = process.env.PORT || 3000; // Railway의 PORT 환경변수 사용
 
-// uploads 폴더가 없으면 생성
+const app = express();
+const port = process.env.PORT || 3000;
+
+// 'uploads' 폴더 생성
 if (!fs.existsSync("uploads")) {
   fs.mkdirSync("uploads");
 }
@@ -21,7 +21,7 @@ app.use(cors());
 app.use(express.json());
 app.use("/uploads", express.static("uploads"));
 
-// MongoDB 연결 - Railway의 MongoDB URL 사용
+// MongoDB 연결
 mongoose
   .connect(process.env.MONGODB_URI, {
     useNewUrlParser: true,
@@ -34,7 +34,7 @@ mongoose
     console.error("MongoDB 연결 실패:", err);
   });
 
-// 스키마 정의
+// 게시글 스키마 정의
 const PostSchema = new mongoose.Schema({
   title: {
     type: String,
@@ -81,13 +81,13 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({
-  storage: storage,
+  storage,
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB 제한
   },
 }).single("image");
 
-// 게시글 작성
+// 게시글 작성 API
 app.post("/api/posts", (req, res) => {
   upload(req, res, async (err) => {
     try {
@@ -98,16 +98,11 @@ app.post("/api/posts", (req, res) => {
           .json({ message: "파일 업로드 실패", error: err.message });
       }
 
-      console.log("Received data:", {
-        body: req.body,
-        file: req.file,
-      });
-
       const { title, content, category, program } = req.body;
 
       // 필수 필드 검증
       if (!title || !content || !category || !program) {
-        console.error("Missing required fields:", {
+        console.error("누락된 필수 항목:", {
           title,
           content,
           category,
@@ -133,7 +128,7 @@ app.post("/api/posts", (req, res) => {
       });
 
       await post.save();
-      console.log("Post saved successfully:", post);
+      console.log("게시글 저장 성공:", post);
       res.status(201).json(post);
     } catch (error) {
       console.error("게시글 작성 에러:", error);
@@ -146,7 +141,7 @@ app.post("/api/posts", (req, res) => {
   });
 });
 
-// 게시글 목록 조회
+// 게시글 목록 조회 API
 app.get("/api/posts", async (req, res) => {
   try {
     const { category, program } = req.query;
@@ -157,7 +152,7 @@ app.get("/api/posts", async (req, res) => {
 
     const posts = await Post.find(filter).sort("-createdAt").limit(20);
 
-    console.log("Retrieved posts:", posts.length);
+    console.log("게시글 목록 조회 결과:", posts.length);
     res.json(posts);
   } catch (error) {
     console.error("게시글 목록 조회 에러:", error);
@@ -165,7 +160,7 @@ app.get("/api/posts", async (req, res) => {
   }
 });
 
-// 특정 게시글 조회
+// 특정 게시글 조회 API
 app.get("/api/posts/:id", async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
@@ -194,5 +189,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(port, () => {
-  console.log(`서버가 http://localhost:${port} 에서 실행 중입니다.`);
+  console.log(`서버가 http://localhost:${port}에서 실행 중입니다.`);
 });
