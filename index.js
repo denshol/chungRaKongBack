@@ -24,7 +24,7 @@ mongoose
   });
 
 // 게시판 라우터
-const postRoutes = require("./routes/posts");
+const postRoutes = require("./src/routes/posts");
 app.use("/api/posts", postRoutes);
 
 const PORT = process.env.PORT || 5000;
