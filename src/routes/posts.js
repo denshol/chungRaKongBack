@@ -1,7 +1,7 @@
 // routes/posts.js
 const express = require("express");
 const router = express.Router();
-const Post = require("../models/Post");
+const Post = require("../models/post");
 
 // 게시글 목록 조회
 router.get("/", async (req, res) => {
