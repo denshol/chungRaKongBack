@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "dependencies": {
     "@types/node": "22.10.7",
