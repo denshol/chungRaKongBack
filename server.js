@@ -1,4 +1,6 @@
 // backend/server.js
+
+require('dotenv').config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -12,13 +14,9 @@ app.use(express.json());
 app.use(morgan("dev"));
 
 // MongoDB 연결
-mongoose
-  .connect("mongodb://localhost:27017/board", {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => console.log("MongoDB 연결 성공"))
-  .catch((err) => console.error("MongoDB 연결 실패:", err));
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
 // Post 모델 정의
 const commentSchema = new mongoose.Schema({
@@ -211,6 +209,6 @@ app.delete("/api/posts/:id/comments/:commentId", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`서버가 ${PORT} 포트에서 실행중입니다.`);
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
