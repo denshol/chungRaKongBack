@@ -1,21 +1,31 @@
-// src/middleware/auth.js
+// middleware/auth.js
 const jwt = require("jsonwebtoken");
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+const { catchAsync } = require("../utils/errorHandler");
+const User = require("../models/User");
 
-const authenticateToken = (req, res, next) => {
-  const token = req.headers["authorization"]?.split(" ")[1];
-
-  if (!token) {
-    return res.status(401).json({ message: "인증이 필요합니다." });
+exports.protect = catchAsync(async (req, res, next) => {
+  let token;
+  if (req.headers.authorization?.startsWith("Bearer")) {
+    token = req.headers.authorization.split(" ")[1];
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) {
-      return res.status(403).json({ message: "유효하지 않은 토큰입니다." });
-    }
-    req.user = user;
-    next();
-  });
-};
+  if (!token) {
+    return res.status(401).json({
+      status: "fail",
+      message: "로그인이 필요합니다.",
+    });
+  }
 
-module.exports = authenticateToken;
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  const user = await User.findById(decoded.id);
+
+  if (!user) {
+    return res.status(401).json({
+      status: "fail",
+      message: "유효하지 않은 토큰입니다.",
+    });
+  }
+
+  req.user = user;
+  next();
+});

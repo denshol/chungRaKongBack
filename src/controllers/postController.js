@@ -1,57 +1,103 @@
-const Post = require("../models/post");
+// controllers/postController.js
+const Post = require("../models/Post");
+const { catchAsync } = require("../utils/errorHandler");
 
-// 게시글 생성
-exports.createPost = async (req, res) => {
-  try {
-    const post = new Post(req.body);
-    const savedPost = await post.save();
-    res.status(201).json(savedPost);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
-  }
-};
+exports.getAllPosts = catchAsync(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
 
-// 게시글 목록 조회
-exports.getPosts = async (req, res) => {
-  try {
-    const posts = await Post.find().sort({ createdAt: -1 });
-    res.json(posts);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+  const posts = await Post.find()
+    .populate("author", "username")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
 
-// 특정 게시글 조회
-exports.getPost = async (req, res) => {
-  try {
-    const post = await Post.findById(req.params.id);
-    if (!post) {
-      return res.status(404).json({ message: "게시글을 찾을 수 없습니다." });
-    }
-    res.json(post);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
+  const total = await Post.countDocuments();
 
-// 게시글 수정
-exports.updatePost = async (req, res) => {
-  try {
-    const updatedPost = await Post.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
+  res.status(200).json({
+    status: "success",
+    data: posts,
+    pagination: {
+      current: page,
+      total: Math.ceil(total / limit),
+      hasMore: skip + posts.length < total,
+    },
+  });
+});
+
+exports.createPost = catchAsync(async (req, res) => {
+  const post = await Post.create({
+    ...req.body,
+    author: req.user._id,
+  });
+
+  res.status(201).json({
+    status: "success",
+    data: post,
+  });
+});
+
+exports.getPost = catchAsync(async (req, res) => {
+  const post = await Post.findById(req.params.id)
+    .populate("author", "username")
+    .populate("comments.author", "username");
+
+  if (!post) {
+    return res.status(404).json({
+      status: "fail",
+      message: "게시글을 찾을 수 없습니다.",
     });
-    res.json(updatedPost);
-  } catch (error) {
-    res.status(400).json({ message: error.message });
   }
-};
 
-// 게시글 삭제
-exports.deletePost = async (req, res) => {
-  try {
-    await Post.findByIdAndDelete(req.params.id);
-    res.json({ message: "게시글이 삭제되었습니다." });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+  // 조회수 증가
+  post.views += 1;
+  await post.save();
+
+  res.status(200).json({
+    status: "success",
+    data: post,
+  });
+});
+
+exports.updatePost = catchAsync(async (req, res) => {
+  const post = await Post.findOneAndUpdate(
+    {
+      _id: req.params.id,
+      author: req.user._id,
+    },
+    req.body,
+    { new: true, runValidators: true }
+  );
+
+  if (!post) {
+    return res.status(404).json({
+      status: "fail",
+      message: "게시글을 찾을 수 없거나 권한이 없습니다.",
+    });
   }
-};
+
+  res.status(200).json({
+    status: "success",
+    data: post,
+  });
+});
+
+exports.deletePost = catchAsync(async (req, res) => {
+  const post = await Post.findOneAndDelete({
+    _id: req.params.id,
+    author: req.user._id,
+  });
+
+  if (!post) {
+    return res.status(404).json({
+      status: "fail",
+      message: "게시글을 찾을 수 없거나 권한이 없습니다.",
+    });
+  }
+
+  res.status(204).json({
+    status: "success",
+    data: null,
+  });
+});
