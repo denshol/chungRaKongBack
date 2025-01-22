@@ -1,24 +1,27 @@
-// backend/server.js
-
-require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
-const morgan = require("morgan");
+require("dotenv").config();
 
 const app = express();
 
-// 미들웨어
 app.use(cors());
 app.use(express.json());
-app.use(morgan("dev"));
 
-// MongoDB 연결
+const MONGODB_URI = process.env.MONGODB_URI;
+console.log("Attempting to connect to MongoDB with URI:", MONGODB_URI);
+
 mongoose
-  .connect(process.env.MONGODB_URI)
-  .then(() => console.log("MongoDB connected"))
-  .catch((err) => console.error("MongoDB connection error:", err));
-
+  .connect(MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => {
+    console.log("Successfully connected to MongoDB");
+  })
+  .catch((err) => {
+    console.error("MongoDB connection error:", err);
+  });
 // Post 모델 정의
 const commentSchema = new mongoose.Schema({
   content: {
