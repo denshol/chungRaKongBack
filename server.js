@@ -7,8 +7,17 @@ const contactRoutes = require("./routes/contacts");
 
 const app = express();
 
-// CORS 설정 단순화
-app.use(cors());
+const corsOptions = {
+  origin: "*", // 모든 출처 허용 (보안상 필요시 도메인으로 제한)
+  methods: "GET, POST, OPTIONS",
+  allowedHeaders: "Content-Type, Authorization",
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
+// OPTIONS 요청을 수동으로 처리
+app.options("*", cors(corsOptions));
+
 app.use(express.json());
 
 connectDB();

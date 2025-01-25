@@ -7,23 +7,18 @@ router.get("/", async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
 
-  try {
-    const posts = await Post.find()
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit);
-
-    const total = await Post.countDocuments();
-
-    res.json({
-      posts,
-      currentPage: page,
-      totalPages: Math.ceil(total / limit),
-      totalPosts: total,
-    });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
+  router.post("/", async (req, res) => {
+    try {
+      console.log("Received data:", req.body);
+      const contact = new Contact(req.body);
+      const savedContact = await contact.save();
+      console.log("Saved contact:", savedContact);
+      res.status(201).json(savedContact);
+    } catch (error) {
+      console.error("Error saving contact:", error.message);
+      res.status(500).json({ message: "서버 오류", error: error.message });
+    }
+  });
 });
 
 // 게시글 검색 추가
