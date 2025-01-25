@@ -1,72 +1,89 @@
-// backend/routes/posts.js
 const express = require("express");
 const router = express.Router();
 const Post = require("../models/Post");
 
-// 게시글 목록 조회
+// 게시글 목록 조회 (페이지네이션 추가)
 router.get("/", async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+
   try {
-    const posts = await Post.find().sort({ createdAt: -1 }).limit(10);
+    const posts = await Post.find()
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    const total = await Post.countDocuments();
+
+    res.json({
+      posts,
+      currentPage: page,
+      totalPages: Math.ceil(total / limit),
+      totalPosts: total,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// 게시글 검색 추가
+router.get("/search", async (req, res) => {
+  const { keyword } = req.query;
+  try {
+    const posts = await Post.find({
+      $or: [
+        { title: { $regex: keyword, $options: "i" } },
+        { content: { $regex: keyword, $options: "i" } },
+      ],
+    }).sort({ createdAt: -1 });
     res.json(posts);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// 게시글 상세 조회
-router.get("/:id", async (req, res) => {
+// 게시글 수정
+router.put("/:id", async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
-    if (!post) {
+    if (!post)
       return res.status(404).json({ message: "게시글을 찾을 수 없습니다." });
-    }
-    // 조회수 증가
-    post.views += 1;
-    await post.save();
-    res.json(post);
+
+    Object.assign(post, req.body);
+    const updatedPost = await post.save();
+    res.json(updatedPost);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+// 게시글 삭제
+router.delete("/:id", async (req, res) => {
+  try {
+    const post = await Post.findByIdAndDelete(req.params.id);
+    if (!post)
+      return res.status(404).json({ message: "게시글을 찾을 수 없습니다." });
+    res.status(204).send();
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// 게시글 작성
-// backend/routes/posts.js
-router.post("/", async (req, res) => {
-  console.log("게시글 작성 요청:", req.body); // 요청 데이터 로그
-
-  const post = new Post({
-    title: req.body.title,
-    content: req.body.content,
-    author: req.body.author || "익명",
-  });
-
-  try {
-    const newPost = await post.save();
-    console.log("저장된 게시글:", newPost); // 저장된 데이터 로그
-    res.status(201).json(newPost);
-  } catch (err) {
-    console.error("게시글 저장 실패:", err); // 에러 로그
-    res.status(400).json({ message: err.message });
-  }
-});
-
-// 댓글 작성
-router.post("/:id/comments", async (req, res) => {
+// 댓글 삭제 추가
+router.delete("/:id/comments/:commentId", async (req, res) => {
   try {
     const post = await Post.findById(req.params.id);
-    if (!post) {
+    if (!post)
       return res.status(404).json({ message: "게시글을 찾을 수 없습니다." });
-    }
 
-    post.comments.push({
-      content: req.body.content,
-      author: req.body.author || "익명",
-    });
+    post.comments = post.comments.filter(
+      (comment) => comment._id.toString() !== req.params.commentId
+    );
 
-    const updatedPost = await post.save();
-    res.json(updatedPost);
+    await post.save();
+    res.status(204).send();
   } catch (err) {
-    res.status(400).json({ message: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
