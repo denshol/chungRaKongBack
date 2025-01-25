@@ -4,6 +4,8 @@ require("dotenv").config();
 const connectDB = require("./config/db");
 const postRoutes = require("./routes/posts");
 const contactRoutes = require("./routes/contacts");
+const sendEmailNotification = require("./utils/emailService");
+const sendSMSNotification = require("./utils/smsService");
 
 const app = express();
 
@@ -15,12 +17,28 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-// OPTIONS 요청을 수동으로 처리
 app.options("*", cors(corsOptions));
 
 app.use(express.json());
 
 connectDB();
+
+// 문의 처리 라우트
+app.post("/api/contact", async (req, res) => {
+  try {
+    console.log("Received contact form submission:", req.body);
+    const { name, email, phone, subject, message } = req.body;
+
+    // 이메일 및 SMS 전송
+    await sendEmailNotification({ name, email, phone, subject, message });
+    await sendSMSNotification({ name, email, phone, subject });
+
+    res.status(201).json({ message: "문의가 성공적으로 접수되었습니다." });
+  } catch (error) {
+    console.error("Error processing contact form:", error);
+    res.status(500).json({ message: "서버 오류 발생" });
+  }
+});
 
 // 에러 핸들링 미들웨어 추가
 app.use((err, req, res, next) => {
