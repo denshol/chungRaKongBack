@@ -1,4 +1,3 @@
-// server.js
 const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
@@ -8,17 +7,17 @@ const contactRoutes = require("./routes/contacts");
 
 const app = express();
 
-app.use(
-  cors({
-    origin: "*", // 개발 중에는 모든 도메인 허용
-    methods: ["GET", "POST"],
-    credentials: false, // credentials 사용 안 함
-  })
-);
-
+// CORS 설정 단순화
+app.use(cors());
 app.use(express.json());
 
 connectDB();
+
+// 에러 핸들링 미들웨어 추가
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: "서버 오류" });
+});
 
 app.use("/api/posts", postRoutes);
 app.use("/api/contact", contactRoutes);
