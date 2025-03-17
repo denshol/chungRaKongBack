@@ -1,9 +1,9 @@
 const jwt = require("jsonwebtoken");
-require("dotenv").config();
 
-const generateToken = (userId) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN || "30d",
+// JWT 토큰 생성 함수
+const generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: "30d", // 30일 유효
   });
 };
 

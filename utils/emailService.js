@@ -1,34 +1,44 @@
+// utils/emailNotification.js
 const nodemailer = require("nodemailer");
+require("dotenv").config();
+
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER, // 환경 변수에 설정된 이메일 계정
+    pass: process.env.EMAIL_PASS, // 환경 변수에 설정된 비밀번호
+  },
+});
 
 const sendEmailNotification = async ({
   name,
   email,
   phone,
-  subject,
+  programTitle,
   message,
 }) => {
-  const transporter = nodemailer.createTransport({
-    service: "gmail", // Gmail 사용 (다른 서비스도 가능)
-    auth: {
-      user: process.env.EMAIL_USER, // 환경 변수에서 이메일 계정
-      pass: process.env.EMAIL_PASS, // 환경 변수에서 비밀번호
-    },
-  });
-
   const mailOptions = {
     from: process.env.EMAIL_USER,
-    to: process.env.ADMIN_EMAIL, // 관리자의 이메일
-    subject: `새로운 문의: ${subject}`,
-    text: `이름: ${name}\n이메일: ${email}\n연락처: ${phone}\n내용: ${message}`,
+    to: process.env.ADMIN_EMAIL, // 관리자의 이메일 주소
+    subject: `📢 새로운 신청: ${programTitle}`,
+    text: `📌 새로운 프로그램 신청이 접수되었습니다.
+    
+이름: ${name}
+이메일: ${email}
+전화번호: ${phone}
+프로그램명: ${programTitle}
+신청 메시지: ${message}
+    
+확인 후 처리 부탁드립니다.`,
   };
 
   try {
     await transporter.sendMail(mailOptions);
-    console.log("Email sent successfully");
+    console.log("✅ 이메일 알림 전송 성공");
   } catch (error) {
-    console.error("Email sending failed:", error);
+    console.error("❌ 이메일 알림 전송 실패:", error);
     throw new Error("이메일 전송 실패");
   }
 };
 
-module.exports = sendEmailNotification;
+module.exports = { sendEmailNotification };
